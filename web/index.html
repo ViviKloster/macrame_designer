@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  
+  <!-- Título de la aplicación -->
+  <title>Macrame Designer</title>
+  
+  <!-- Estilos CSS -->
+  <style>
+    /* Reset y estilos básicos */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    }
+    
+    /* Fondo de carga */
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    /* Pantalla de carga */
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-align: center;
+      z-index: 10000;
+      transition: opacity 0.5s ease;
+    }
+    
+    .spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #ffffff;
+      animation: spin 1s ease-in-out infinite;
+      margin-bottom: 24px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    #loading h1 {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+      font-weight: 600;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+    
+    #loading p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+    
+    /* Contenedor de Flutter */
+    #flutter-host {
+      width: 100%;
+      height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* Estilos para errores */
+    .error-container {
+      padding: 40px;
+      text-align: center;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    
+    .error-button {
+      margin-top: 20px;
+      padding: 12px 30px;
+      background: white;
+      color: #764ba2;
+      border: none;
+      border-radius: 25px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .error-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Debug info para desarrollo */
+    #debug-info {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 12px;
+      z-index: 10001;
+      display: none;
+    }
+  </style>
+  
+  <!-- Script de Flutter - IMPORTANTE para desarrollo -->
+  <script src="flutter.js" defer></script>
+</head>
+<body>
+  <!-- Pantalla de carga inicial -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <h1>Macrame Designer</h1>
+    <p>Inicializando aplicación Flutter...</p>
+    <p id="status-text">Cargando recursos...</p>
+  </div>
+  
+  <!-- Debug info (solo en desarrollo) -->
+  <div id="debug-info">
+    Modo: <span id="debug-mode">Desarrollo</span>
+  </div>
+  
+  <!-- Contenedor donde se montará la app de Flutter -->
+  <div id="flutter-host"></div>
+  
+  <!-- Script de inicialización OPTIMIZADO para Flutter/Dart -->
+  <script>
+    // ============================================
+    // CONFIGURACIÓN PARA DESARROLLO FLUTTER
+    // ============================================
+    
+    console.log('🚀 Iniciando aplicación Flutter Web...');
+    
+    // Detectar entorno
+    const isDevelopment = window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1';
+    
+    if (isDevelopment) {
+      console.log('🔧 Modo desarrollo detectado');
+      document.getElementById('debug-info').style.display = 'block';
+      document.getElementById('debug-mode').textContent = 'Dev';
+    }
+    
+    // Variables globales
+    let serviceWorkerVersion = null;
+    let flutterInitialized = false;
+    
+    // ============================================
+    // FUNCIONES DE UTILIDAD
+    // ============================================
+    
+    function updateStatus(message) {
+      const statusEl = document.getElementById('status-text');
+      if (statusEl) {
+        statusEl.textContent = message;
+      }
+      console.log('📝 Status:', message);
+    }
+    
+    function showError(title, message, details = '') {
+      console.error('❌ ERROR:', title, '-', message, details);
+      
+      const loadingEl = document.getElementById('loading');
+      loadingEl.innerHTML = `
+        <div class="error-container">
+          <h1 style="color: #ff6b6b; margin-bottom: 20px;">${title}</h1>
+          <p style="margin-bottom: 15px; font-size: 1.1rem;">${message}</p>
+          ${details ? '<p style="margin-bottom: 10px; font-size: 0.9rem; opacity: 0.8; font-family: monospace;">' + details + '</p>' : ''}
+          <button onclick="window.location.reload()" class="error-button">
+            🔄 Reintentar
+          </button>
+          <div style="margin-top: 25px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+            <p style="font-size: 0.9rem; margin-bottom: 10px; opacity: 0.8;">Solución rápida:</p>
+            <p style="font-size: 0.8rem; font-family: monospace; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px;">
+              flutter clean<br>
+              flutter pub get<br>
+              flutter run -d chrome
+            </p>
+          </div>
+        </div>
+      `;
+    }
+    
+    function hideLoadingScreen() {
+      const loadingEl = document.getElementById('loading');
+      if (loadingEl) {
+        loadingEl.style.opacity = '0';
+        setTimeout(() => {
+          loadingEl.style.display = 'none';
+        }, 500);
+      }
+    }
+    
+    // ============================================
+    // INICIALIZACIÓN DEL SERVICE WORKER
+    // ============================================
+    
+    function initializeServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        updateStatus('Registrando Service Worker...');
+        
+        navigator.serviceWorker.register('flutter_service_worker.js')
+          .then(function(registration) {
+            console.log('✅ Service Worker registrado:', registration);
+            
+            if (registration.active) {
+              serviceWorkerVersion = registration.active.scriptURL;
+            }
+            
+            // Verificar actualizaciones
+            registration.addEventListener('updatefound', () => {
+              console.log('🔄 Nueva versión del Service Worker encontrada');
+            });
+          })
+          .catch(function(error) {
+            console.warn('⚠️ Service Worker no registrado:', error);
+            // En desarrollo, esto es normal si no hay service worker
+            if (!isDevelopment) {
+              console.warn('Service Worker falló, continuando sin offline support');
+            }
+          });
+      }
+    }
+    
+    // ============================================
+    // INICIALIZACIÓN PRINCIPAL DE FLUTTER
+    // ============================================
+    
+    async function initializeFlutter() {
+      if (flutterInitialized) {
+        console.warn('⚠️ Flutter ya fue inicializado');
+        return;
+      }
+      
+      updateStatus('Inicializando Flutter Engine...');
+      
+      try {
+        // Verificar que Flutter está disponible
+        if (typeof _flutter === 'undefined') {
+          throw new Error('El objeto _flutter no está definido. flutter.js no se cargó correctamente.');
+        }
+        
+        if (typeof _flutter.loader === 'undefined') {
+          throw new Error('_flutter.loader no disponible. Archivo flutter.js corrupto o versión incorrecta.');
+        }
+        
+        // Método RECOMENDADO por Flutter 3.0+
+        const loader = _flutter.loader;
+        
+        if (typeof loader.loadEntrypoint === 'function') {
+          console.log('✅ Usando loadEntrypoint (Flutter 3.0+)');
+          
+          await loader.loadEntrypoint({
+            serviceWorker: {
+              serviceWorkerVersion: serviceWorkerVersion,
+            },
+            onEntrypointLoaded: async (engineInitializer) => {
+              try {
+                updateStatus('Cargando motor Dart...');
+                
+                const appRunner = await engineInitializer.initializeEngine({
+                  hostElement: document.getElementById('flutter-host'),
+                  renderer: isDevelopment ? 'html' : 'auto'
+                });
+                
+                updateStatus('Ejecutando aplicación...');
+                
+                await appRunner.runApp();
+                
+                // Éxito!
+                flutterInitialized = true;
+                updateStatus('¡Aplicación lista!');
+                
+                // Ocultar loading después de un breve delay
+                setTimeout(hideLoadingScreen, 300);
+                
+                console.log('🎉 Flutter inicializado correctamente');
+                
+              } catch (engineError) {
+                console.error('❌ Error del motor Flutter:', engineError);
+                showError(
+                  'Error del Motor Flutter',
+                  'No se pudo inicializar el motor Dart.',
+                  engineError.message
+                );
+              }
+            }
+          });
+          
+        } else if (typeof loader.load === 'function') {
+          // Método legacy (Flutter < 3.0)
+          console.log('⚠️ Usando método load legacy');
+          
+          loader.load({
+            onEntrypointLoaded: async (engineInitializer) => {
+              updateStatus('Inicializando (modo legacy)...');
+              
+              const appRunner = await engineInitializer.initializeEngine({
+                hostElement: document.getElementById('flutter-host')
+              });
+              
+              await appRunner.runApp();
+              flutterInitialized = true;
+              hideLoadingScreen();
+            }
+          });
+          
+        } else {
+          throw new Error('No se encontró método de carga válido en _flutter.loader');
+        }
+        
+      } catch (error) {
+        console.error('❌ Error crítico en initializeFlutter:', error);
+        showError(
+          'Error de Inicialización',
+          'No se pudo cargar la aplicación Flutter.',
+          error.message
+        );
+      }
+    }
+    
+    // ============================================
+    // MANEJADORES DE EVENTOS
+    // ============================================
+    
+    // Esperar a que la página esté completamente cargada
+    window.addEventListener('load', function() {
+      console.log('📄 DOM completamente cargado');
+      updateStatus('DOM listo, preparando Flutter...');
+      
+      // Inicializar Service Worker (si existe)
+      initializeServiceWorker();
+      
+      // Pequeño delay para asegurar que todo esté listo
+      setTimeout(() => {
+        // Verificar que flutter.js cargó correctamente
+        if (typeof _flutter === 'undefined') {
+          showError(
+            'Archivo faltante',
+            'No se pudo cargar flutter.js',
+            'Verifica que el archivo existe en: ' + window.location.origin + '/flutter.js'
+          );
+          return;
+        }
+        
+        // Inicializar Flutter
+        initializeFlutter();
+      }, 100);
+    });
+    
+    // Manejar errores globales
+    window.addEventListener('error', function(event) {
+      console.error('🚨 Error global:', event.error || event.message);
+      
+      // No mostrar errores de recursos (imágenes, etc.)
+      if (event.target && event.target.tagName) {
+        return;
+      }
+      
+      // Si es un error relacionado con Flutter
+      if (event.message && (
+        event.message.includes('flutter') || 
+        event.message.includes('dart') ||
+        event.message.includes('CanvasKit')
+      )) {
+        showError(
+          'Error de Flutter Web',
+          'Problema al cargar la aplicación',
+          event.message.substring(0, 200)
+        );
+      }
+    });
+    
+    // Manejar promesas rechazadas
+    window.addEventListener('unhandledrejection', function(event) {
+      console.error('⚠️ Promesa rechazada:', event.reason);
+    });
+    
+    // ============================================
+    // FUNCIONES DE DIAGNÓSTICO (útil para desarrollo)
+    // ============================================
+    
+    // Solo en desarrollo
+    if (isDevelopment) {
+      // Exponer funciones útiles en consola
+      window.flutterDebug = {
+        reload: function() {
+          window.location.reload();
+        },
+        checkFlutter: function() {
+          console.log('_flutter disponible:', typeof _flutter !== 'undefined');
+          console.log('_flutter.loader:', _flutter?.loader);
+          console.log('Service Worker:', serviceWorkerVersion);
+          console.log('Flutter inicializado:', flutterInitialized);
+        },
+        forceInit: function() {
+          if (!flutterInitialized) {
+            initializeFlutter();
+          }
+        }
+      };
+      
+      console.log('🔧 Herramientas de debug disponibles: window.flutterDebug');
+    }
+  </script>
+</body>
+</html>
