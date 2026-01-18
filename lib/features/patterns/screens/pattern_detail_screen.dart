@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 class PatternDetailScreen extends StatefulWidget {
   final PatternDesign pattern;
-
   const PatternDetailScreen({super.key, required this.pattern});
 
   @override

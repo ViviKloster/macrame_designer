@@ -1,376 +1,366 @@
-// lib/src/features/patterns/services/pattern_service.dart
-import 'dart:convert';
+import 'package:macrame_designer/features/patterns/models/pattern_model.dart';
 import 'package:http/http.dart' as http;
-import '../models/pattern_model.dart';
+import 'dart:convert';
+import 'package:macrame_designer/core/constants.dart';
 
 class PatternService {
-  static const String _apiBaseUrl = 'http://localhost:3001'; // Cambia según tu backend
+  // Usar la misma variable de AppConstants que usamos en DesignerScreen
+  String get _apiBaseUrl => AppConstants.apiBaseUrl;
   
-  // Cargar todos los patrones desde la API
-  static Future<List<PatternDesign>> loadPatternsFromApi() async {
+  // URL para patrones
+  String get _patternsBaseUrl => '$_apiBaseUrl/api/patterns';
+  
+  Future<List<PatternDesign>> getPatterns() async {
     try {
       print('🔄 Cargando patrones desde API...');
+      print('🌐 URL: $_patternsBaseUrl');
+      
       final response = await http.get(
-        Uri.parse('$_apiBaseUrl/api/patterns'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(_patternsBaseUrl),
+        headers: {'Accept': 'application/json'},
       );
-
+      
+      print('📥 Status Code: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        // Manejar diferentes formatos de respuesta
+        final dynamic responseData = jsonDecode(response.body);
+        List<dynamic> patternsList = [];
         
-        if (responseData['success'] == true && responseData['data'] is List) {
-          final List<dynamic> patternsData = responseData['data'];
-          
-          final patterns = patternsData.map((patternData) {
-            return PatternDesign.fromJson(patternData);
-          }).toList();
-          
-          print('✅ ${patterns.length} patrones cargados desde API');
-          return patterns;
-        } else {
-          print('⚠️ Formato de respuesta inválido, usando ejemplos');
-          return PatternService.getSamplePatterns();
+        if (responseData is List) {
+          // La API devolvió una lista directa
+          patternsList = responseData;
+        } else if (responseData is Map) {
+          // Buscar la lista dentro del objeto
+          if (responseData['data'] is List) {
+            patternsList = responseData['data'];
+          } else if (responseData['patterns'] is List) {
+            patternsList = responseData['patterns'];
+          } else if (responseData['results'] is List) {
+            patternsList = responseData['results'];
+          } else {
+            // Buscar cualquier propiedad que sea lista
+            for (var key in responseData.keys) {
+              if (responseData[key] is List) {
+                patternsList = responseData[key];
+                break;
+              }
+            }
+          }
         }
+        
+        // Convertir JSON a objetos PatternDesign
+        final patterns = patternsList.map((patternJson) {
+          try {
+            return PatternDesign.fromJson(patternJson);
+          } catch (e) {
+            print('❌ Error parseando patrón: $e');
+            print('📄 Datos del patrón: $patternJson');
+            return _createFallbackPattern();
+          }
+        }).toList();
+        
+        print('✅ ${patterns.length} patrones cargados exitosamente');
+        return patterns.where((p) => p.id.isNotEmpty).toList();
       } else {
-        print('⚠️ Error HTTP ${response.statusCode}, usando ejemplos');
-        return PatternService.getSamplePatterns();
+        print('⚠️ API devolvió código ${response.statusCode}');
+        print('📄 Respuesta: ${response.body}');
+        return _getMockPatterns();
       }
     } catch (e) {
       print('❌ Error cargando patrones: $e');
-      return PatternService.getSamplePatterns();
-    }
-  }
-
-  // Guardar un patrón en la API
-  static Future<bool> savePatternToApi(PatternDesign pattern) async {
-    try {
-      print('💾 Guardando patrón en API: ${pattern.name}');
+      print('📄 Stack trace: ${e.toString()}');
       
-      final response = await http.post(
-        Uri.parse('$_apiBaseUrl/api/patterns'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(pattern.toJson()),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        print('✅ Patrón guardado exitosamente');
-        return true;
-      } else {
-        print('❌ Error HTTP ${response.statusCode}');
-        return false;
-      }
-    } catch (e) {
-      print('❌ Error guardando patrón: $e');
-      return false;
+      // Retornar datos de ejemplo para desarrollo
+      return _getMockPatterns();
     }
   }
-
-  // Método para cargar patrones prediseñados (ejemplos)
-  static List<PatternDesign> getSamplePatterns() {
+  
+  // Patrón de respaldo si falla el parsing
+  PatternDesign _createFallbackPattern() {
+    return PatternDesign(
+      id: 'fallback_${DateTime.now().millisecondsSinceEpoch}',
+      name: 'Patrón de ejemplo',
+      author: 'Sistema',
+      description: 'Patrón cargado automáticamente',
+      imageUrl: '',
+      youtubeTutorialUrl: '',
+      storeUrl: '',
+      difficulty: PatternDifficulty.beginner,
+      estimatedHours: 3.0,
+      tags: ['ejemplo', 'respaldo'],
+      canBeDoubled: false,
+      doubledSizeMultiplier: 1.0,
+      materials: [
+        MaterialRequirement(
+          materialId: 'cord_default',
+          name: 'Cordón estándar',
+          thickness: 3.0,
+          lengthPerUnit: 2.0,
+          quantity: 10,
+          knottedReduction: 0.25,
+        ),
+      ],
+      cordCuts: [],
+    );
+  }
+  
+  // Datos de ejemplo para desarrollo
+  List<PatternDesign> _getMockPatterns() {
     return [
       PatternDesign(
         id: '1',
-        name: 'Tapiz triangular básico',
-        description: 'Perfecto para principiantes. Diseño minimalista con nudos cuadrados y medios nudos.',
-        imageUrl: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
-        youtubeTutorialUrl: 'https://www.youtube.com/watch?v=HxYjM-4rT7g',
-        storeUrl: 'https://tu-tienda.com/patterns/triangular-basic',
+        name: 'Tapiz Diamante',
+        author: 'Ana López',
+        description: 'Tapiz moderno con diseño geométrico en forma de diamante',
+        imageUrl: '',
+        youtubeTutorialUrl: 'https://youtube.com/watch?v=abc123',
+        storeUrl: 'https://tienda.com/tapiz-diamante',
         difficulty: PatternDifficulty.beginner,
-        estimatedHours: 2.5,
-        tags: ['principiante', 'decorativo', 'pared', 'triangular'],
+        estimatedHours: 4.5,
+        tags: ['tapiz', 'geometrico', 'principiante'],
         canBeDoubled: true,
-        doubledSizeMultiplier: 1.8,
+        doubledSizeMultiplier: 2.0,
         materials: [
           MaterialRequirement(
-            materialId: 'cord_5mm',
-            name: 'Cordón de algodón 5mm',
-            thickness: 5.0,
-            lengthPerUnit: 4.0,
-            quantity: 10,
-            knottedReduction: 0.25,
+            materialId: 'cord_3mm',
+            name: 'Cordón de algodón 3mm',
+            thickness: 3.0,
+            lengthPerUnit: 2.5,
+            quantity: 20,
+            knottedReduction: 0.3,
           ),
         ],
         cordCuts: [
           CordCut(
             name: 'Tiras principales',
-            length: 2.5,
-            quantity: 8,
+            length: 2.0,
+            quantity: 10,
             isDoubled: true,
-            unknottedLength: 5.5,
-          ),
-          CordCut(
-            name: 'Tiras decorativas',
-            length: 1.2,
-            quantity: 4,
-            isDoubled: false,
-            unknottedLength: 1.4,
+            unknottedLength: 2.4,
           ),
         ],
       ),
       PatternDesign(
         id: '2',
-        name: 'Portamacetas colgante',
-        description: 'Portamacetas con diseño de nudos espirales y bayas. Ideal para interiores.',
-        imageUrl: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
-        youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo2',
-        storeUrl: 'https://tu-tienda.com/patterns/plant-hanger',
+        name: 'Portamacetas Colgante',
+        author: 'Carlos Ruiz',
+        description: 'Portamacetas tejido con nudos espirales',
+        imageUrl: '',
+        youtubeTutorialUrl: 'https://youtube.com/watch?v=def456',
+        storeUrl: 'https://tienda.com/portamacetas-colgante',
         difficulty: PatternDifficulty.intermediate,
-        estimatedHours: 4.0,
-        tags: ['plantas', 'colgante', 'interior', 'decorativo'],
+        estimatedHours: 6.0,
+        tags: ['portamacetas', 'colgante', 'intermedio'],
         canBeDoubled: false,
+        doubledSizeMultiplier: 1.0,
         materials: [
           MaterialRequirement(
             materialId: 'cord_4mm',
             name: 'Cordón de yute 4mm',
             thickness: 4.0,
             lengthPerUnit: 3.0,
-            quantity: 6,
-            knottedReduction: 0.3,
-          ),
-          MaterialRequirement(
-            materialId: 'beads',
-            name: 'Cuentas de madera',
-            thickness: 0.0,
-            lengthPerUnit: 0.0,
-            quantity: 8,
+            quantity: 15,
+            knottedReduction: 0.25,
           ),
         ],
-        cordCuts: [
-          CordCut(
-            name: 'Cuerdas de soporte',
-            length: 3.0,
-            quantity: 4,
-            isDoubled: true,
-            unknottedLength: 6.5,
-          ),
-          CordCut(
-            name: 'Cuerdas decorativas',
-            length: 2.0,
-            quantity: 4,
-            isDoubled: false,
-            unknottedLength: 2.3,
-          ),
-        ],
+        cordCuts: [],
       ),
       PatternDesign(
         id: '3',
-        name: 'Cortina de macramé',
-        description: 'Cortina decorativa con patrones complejos de nudos cuadrados y espirales.',
-        imageUrl: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
-        youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo3',
-        storeUrl: 'https://tu-tienda.com/patterns/curtain',
+        name: 'Espejo Boho',
+        author: 'María González',
+        description: 'Marco de espejo con detalles boho chic',
+        imageUrl: '',
+        youtubeTutorialUrl: 'https://youtube.com/watch?v=ghi789',
+        storeUrl: 'https://tienda.com/espejo-boho',
         difficulty: PatternDifficulty.advanced,
-        estimatedHours: 8.0,
-        tags: ['cortina', 'decoración', 'ventana', 'grande'],
+        estimatedHours: 10.0,
+        tags: ['espejo', 'decoracion', 'avanzado'],
         canBeDoubled: true,
-        doubledSizeMultiplier: 2.2,
+        doubledSizeMultiplier: 1.5,
         materials: [
           MaterialRequirement(
-            materialId: 'cord_6mm',
-            name: 'Cordón de algodón grueso 6mm',
-            thickness: 6.0,
-            lengthPerUnit: 8.0,
-            quantity: 15,
+            materialId: 'cord_5mm',
+            name: 'Cordón de algodón trenzado 5mm',
+            thickness: 5.0,
+            lengthPerUnit: 4.0,
+            quantity: 25,
             knottedReduction: 0.35,
           ),
         ],
-        cordCuts: [
-          CordCut(
-            name: 'Tiras largas',
-            length: 7.0,
-            quantity: 12,
-            isDoubled: true,
-            unknottedLength: 15.0,
-          ),
-          CordCut(
-            name: 'Tiras cortas decorativas',
-            length: 1.5,
-            quantity: 10,
-            isDoubled: false,
-            unknottedLength: 1.8,
-          ),
-        ],
+        cordCuts: [],
       ),
       PatternDesign(
         id: '4',
-        name: 'Espejo con marco de macramé',
-        description: 'Marco decorativo para espejos con diseño circular y nudos de baya.',
-        imageUrl: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
-        youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo4',
-        storeUrl: 'https://tu-tienda.com/patterns/mirror-frame',
-        difficulty: PatternDifficulty.expert,
-        estimatedHours: 6.5,
-        tags: ['espejo', 'marco', 'circular', 'decorativo'],
+        name: 'Colgante Lunar',
+        author: 'Lucía Martínez',
+        description: 'Colgante decorativo con forma de luna creciente',
+        imageUrl: '',
+        youtubeTutorialUrl: 'https://youtube.com/watch?v=jkl012',
+        storeUrl: 'https://tienda.com/colgante-lunar',
+        difficulty: PatternDifficulty.intermediate,
+        estimatedHours: 5.0,
+        tags: ['colgante', 'decorativo', 'luna'],
         canBeDoubled: false,
-        materials: [
-          MaterialRequirement(
-            materialId: 'cord_3mm',
-            name: 'Cordón fino de algodón 3mm',
-            thickness: 3.0,
-            lengthPerUnit: 6.0,
-            quantity: 8,
-            knottedReduction: 0.4,
-          ),
-          MaterialRequirement(
-            materialId: 'hoop',
-            name: 'Aro de madera 30cm',
-            thickness: 0.0,
-            lengthPerUnit: 0.0,
-            quantity: 1,
-          ),
-        ],
-        cordCuts: [
-          CordCut(
-            name: 'Tiras para nudos',
-            length: 5.0,
-            quantity: 16,
-            isDoubled: false,
-            unknottedLength: 5.0,
-          ),
-          CordCut(
-            name: 'Tiras para colgar',
-            length: 0.8,
-            quantity: 4,
-            isDoubled: true,
-            unknottedLength: 1.0,
-          ),
-        ],
-      ),
-      PatternDesign(
-        id: '5',
-        name: 'Pulsera básica de macramé',
-        description: 'Pulsera simple con nudos cuadrados. Perfecta para principiantes y regalos.',
-        imageUrl: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
-        youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo5',
-        storeUrl: 'https://tu-tienda.com/patterns/basic-bracelet',
-        difficulty: PatternDifficulty.beginner,
-        estimatedHours: 1.0,
-        tags: ['pulsera', 'accesorio', 'principiante', 'regalo'],
-        canBeDoubled: false,
+        doubledSizeMultiplier: 1.0,
         materials: [
           MaterialRequirement(
             materialId: 'cord_2mm',
-            name: 'Cordón fino 2mm',
+            name: 'Cordón delgado 2mm',
             thickness: 2.0,
             lengthPerUnit: 1.5,
-            quantity: 4,
+            quantity: 8,
             knottedReduction: 0.2,
           ),
+        ],
+        cordCuts: [],
+      ),
+      PatternDesign(
+        id: '5',
+        name: 'Cortina de Macramé',
+        author: 'Roberto Sánchez',
+        description: 'Cortina decorativa con diseño de hojas',
+        imageUrl: '',
+        youtubeTutorialUrl: 'https://youtube.com/watch?v=mno345',
+        storeUrl: 'https://tienda.com/cortina-macrame',
+        difficulty: PatternDifficulty.advanced,
+        estimatedHours: 12.0,
+        tags: ['cortina', 'decoracion', 'grande'],
+        canBeDoubled: true,
+        doubledSizeMultiplier: 2.5,
+        materials: [
           MaterialRequirement(
-            materialId: 'clasp',
-            name: 'Cierre de pulsera',
-            thickness: 0.0,
-            lengthPerUnit: 0.0,
-            quantity: 1,
+            materialId: 'cord_6mm',
+            name: 'Cordón grueso 6mm',
+            thickness: 6.0,
+            lengthPerUnit: 5.0,
+            quantity: 30,
+            knottedReduction: 0.4,
           ),
         ],
-        cordCuts: [
-          CordCut(
-            name: 'Cuerdas para pulsera',
-            length: 1.5,
-            quantity: 4,
-            isDoubled: false,
-            unknottedLength: 1.7,
+        cordCuts: [],
+      ),
+      PatternDesign(
+        id: '6',
+        name: 'Pulsera Friendship',
+        author: 'Sofía Ramírez',
+        description: 'Pulsera de amistad con colores vibrantes',
+        imageUrl: '',
+        youtubeTutorialUrl: 'https://youtube.com/watch?v=pqr678',
+        storeUrl: 'https://tienda.com/pulsera-friendship',
+        difficulty: PatternDifficulty.beginner,
+        estimatedHours: 1.5,
+        tags: ['pulsera', 'accesorio', 'rapido'],
+        canBeDoubled: false,
+        doubledSizeMultiplier: 1.0,
+        materials: [
+          MaterialRequirement(
+            materialId: 'cord_1mm',
+            name: 'Hilo de algodón 1mm',
+            thickness: 1.0,
+            lengthPerUnit: 0.8,
+            quantity: 6,
+            knottedReduction: 0.1,
           ),
         ],
+        cordCuts: [],
       ),
     ];
   }
-
-  // Filtrar patrones por múltiples criterios
-  static List<PatternDesign> filterPatterns({
-    required List<PatternDesign> patterns,
-    PatternDifficulty? difficulty,
-    String? searchQuery,
-    List<String>? tags,
-    bool? canBeDoubled,
-  }) {
-    var filtered = patterns;
-    
-    if (difficulty != null) {
-      filtered = filtered.where((p) => p.difficulty == difficulty).toList();
+  
+  // Método para guardar patrones
+  Future<bool> savePattern(PatternDesign pattern) async {
+    try {
+      print('💾 Guardando patrón: ${pattern.name}');
+      print('🌐 URL: $_patternsBaseUrl');
+      
+      final response = await http.post(
+        Uri.parse(_patternsBaseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(pattern.toJson()),
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Patrón guardado exitosamente');
+        return true;
+      } else {
+        print('❌ Error guardando patrón. Status: ${response.statusCode}');
+        print('📄 Respuesta: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error de conexión al guardar patrón: $e');
+      return false;
     }
-    
-    if (searchQuery != null && searchQuery.isNotEmpty) {
-      final query = searchQuery.toLowerCase();
-      filtered = filtered.where((p) =>
-        p.name.toLowerCase().contains(query) ||
-        p.description.toLowerCase().contains(query) ||
-        p.tags.any((tag) => tag.toLowerCase().contains(query))
-      ).toList();
-    }
-    
-    if (tags != null && tags.isNotEmpty) {
-      filtered = filtered.where((p) =>
-        p.tags.any((tag) => tags.contains(tag))
-      ).toList();
-    }
-    
-    if (canBeDoubled != null) {
-      filtered = filtered.where((p) => p.canBeDoubled == canBeDoubled).toList();
-    }
-    
-    return filtered;
   }
-
-  // Ordenar patrones por diferentes criterios
-  static List<PatternDesign> sortPatterns({
-    required List<PatternDesign> patterns,
-    String sortBy = 'name',
-    bool ascending = true,
-  }) {
-    final sorted = List<PatternDesign>.from(patterns);
-    
-    switch (sortBy) {
-      case 'name':
-        sorted.sort((a, b) => ascending 
-            ? a.name.compareTo(b.name)
-            : b.name.compareTo(a.name));
-        break;
-      case 'difficulty':
-        sorted.sort((a, b) => ascending
-            ? a.difficulty.index.compareTo(b.difficulty.index)
-            : b.difficulty.index.compareTo(a.difficulty.index));
-        break;
-      case 'hours':
-        sorted.sort((a, b) => ascending
-            ? a.estimatedHours.compareTo(b.estimatedHours)
-            : b.estimatedHours.compareTo(a.estimatedHours));
-        break;
-      case 'length':
-        sorted.sort((a, b) => ascending
-            ? a.totalLengthRequired.compareTo(b.totalLengthRequired)
-            : b.totalLengthRequired.compareTo(a.totalLengthRequired));
-        break;
+  
+  // Método para actualizar un patrón
+  Future<bool> updatePattern(PatternDesign pattern) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$_patternsBaseUrl/${pattern.id}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(pattern.toJson()),
+      );
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error actualizando patrón: $e');
+      return false;
     }
-    
-    return sorted;
   }
-
-  // Obtener todos los tags únicos de los patrones
-  static List<String> getAllTags(List<PatternDesign> patterns) {
-    final allTags = <String>{};
-    for (final pattern in patterns) {
-      allTags.addAll(pattern.tags);
+  
+  // Método para eliminar un patrón
+  Future<bool> deletePattern(String patternId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$_patternsBaseUrl/$patternId'),
+      );
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error eliminando patrón: $e');
+      return false;
     }
-    return allTags.toList()..sort();
   }
-
-  // Obtener estadísticas de patrones
-  static Map<String, dynamic> getPatternStats(List<PatternDesign> patterns) {
-    final stats = {
-      'total': patterns.length,
-      'beginner': patterns.where((p) => p.difficulty == PatternDifficulty.beginner).length,
-      'intermediate': patterns.where((p) => p.difficulty == PatternDifficulty.intermediate).length,
-      'advanced': patterns.where((p) => p.difficulty == PatternDifficulty.advanced).length,
-      'expert': patterns.where((p) => p.difficulty == PatternDifficulty.expert).length,
-      'canBeDoubled': patterns.where((p) => p.canBeDoubled).length,
-      'avgHours': patterns.isEmpty ? 0 : 
-          patterns.map((p) => p.estimatedHours).reduce((a, b) => a + b) / patterns.length,
-      'avgLength': patterns.isEmpty ? 0 : 
-          patterns.map((p) => p.totalLengthRequired).reduce((a, b) => a + b) / patterns.length,
-    };
-    
-    return stats;
+  
+  // Método para buscar patrones por nombre o tags
+  Future<List<PatternDesign>> searchPatterns(String query) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_patternsBaseUrl/search?q=$query'),
+      );
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => PatternDesign.fromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error buscando patrones: $e');
+      return [];
+    }
+  }
+  
+  // Método para obtener un patrón específico
+  Future<PatternDesign?> getPatternById(String id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_patternsBaseUrl/$id'),
+      );
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return PatternDesign.fromJson(data);
+      }
+      return null;
+    } catch (e) {
+      print('Error obteniendo patrón: $e');
+      return null;
+    }
   }
 }

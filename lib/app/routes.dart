@@ -1,56 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:macrame_designer/features/designer/screens/designer_screen.dart';
 import 'package:macrame_designer/features/patterns/screens/patterns_screen.dart';
+import 'package:macrame_designer/features/patterns/screens/pattern_detail_screen.dart';
+import 'package:macrame_designer/features/patterns/models/pattern_model.dart';
 
-class AppRoutes {
-  static const String home = '/';
+class Routes {
   static const String designer = '/designer';
   static const String patterns = '/patterns';
-  
+  static const String patternDetail = '/pattern-detail';
+
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
-      case home:
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
       case designer:
-        return MaterialPageRoute(builder: (_) => const DesignerScreen());
+        return _fadeRoute(const DesignerScreen(), settings);
       case patterns:
-        return MaterialPageRoute(builder: (_) => const PatternsScreen());
+        return _fadeRoute(const PatternsScreen(), settings);
+      case patternDetail:
+        // Asegúrate de que el argumento sea PatternDesign
+        final pattern = settings.arguments as PatternDesign;
+        return _fadeRoute(
+          PatternDetailScreen(pattern: pattern),
+          settings,
+        );
       default:
-        return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            body: Center(child: Text('No route for ${settings.name}')),
+        return _fadeRoute(
+          Scaffold(
+            body: Center(
+              child: Text('Ruta ${settings.name} no encontrada'),
+            ),
           ),
+          settings,
         );
     }
   }
-}
 
-// Necesitamos declarar HomeScreen aquí temporalmente
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-  final List<Widget> _screens = [
-    const DesignerScreen(),
-    const PatternsScreen(),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.edit), label: 'Diseñador'),
-          BottomNavigationBarItem(icon: Icon(Icons.workspaces_filled), label: 'Patrones'),
-        ],
-      ),
+  static PageRouteBuilder _fadeRoute(Widget page, RouteSettings settings) {
+    return PageRouteBuilder(
+      settings: settings,
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOut,
+          ),
+          child: child,
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 300),
     );
   }
 }

@@ -32,8 +32,8 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
   bool _hasUnsavedChanges = false;
   File? _loadedImage;
   
-  // URL de tu backend API
-  static const String _apiBaseUrl = 'http://localhost:3001';
+  // URL de tu backend API - ahora configurable desde AppConstants
+  late final String _apiBaseUrl;
   
   // Tipos de nudos disponibles
   final List<KnotType> _knotTypes = [
@@ -75,6 +75,11 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Inicializar la URL base desde AppConstants
+    _apiBaseUrl = AppConstants.apiBaseUrl;
+    
+    print('🔌 API Base URL configurada como: $_apiBaseUrl');
     
     // Si hay un patrón inicial, cargarlo
     if (widget.initialPattern != null) {
@@ -350,6 +355,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
       };
 
       print('📤 Guardando diseño: "$designName" con ${knotsToSave.length} nudos');
+      print('🌐 Enviando a: $_apiBaseUrl/api/designs');
       
       final response = await http.post(
         Uri.parse('$_apiBaseUrl/api/designs'),
@@ -359,7 +365,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final Map<String, dynamic> result = jsonDecode(response.body);
-        final projectId = result['projectId'];
+        final projectId = result['projectId'] ?? result['id'];
         
         setState(() {
           _hasUnsavedChanges = false;
@@ -464,6 +470,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
   Future<void> _loadDesign() async {
     try {
       print('🔄 Iniciando carga de diseños desde MySQL...');
+      print('🌐 Solicitando a: $_apiBaseUrl/api/designs');
       
       final response = await http.get(Uri.parse('$_apiBaseUrl/api/designs'));
       
@@ -473,90 +480,97 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         
         print('📊 Estructura de respuesta: ${responseData.keys}');
-        print('✅ success: ${responseData['success']}');
-        print('📊 count: ${responseData['count']}');
-        print('📦 data type: ${responseData['data']?.runtimeType}');
         
-        if (responseData['success'] == true && responseData['data'] is List) {
-          final List<dynamic> designsList = responseData['data'];
-          
-          print('🎉 ${designsList.length} diseños encontrados');
-          
-          if (designsList.isEmpty) {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Cargar Diseño'),
-                content: const Text('No hay diseños guardados en la base de datos.'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
-            );
-            return;
-          }
-          
+        // Manejar diferentes formatos de respuesta
+        List<dynamic> designsList;
+        
+        if (responseData['data'] is List) {
+          designsList = responseData['data'];
+        } else if (responseData['designs'] is List) {
+          designsList = responseData['designs'];
+        } else {
+          throw Exception('Formato de respuesta no reconocido');
+        }
+        
+        print('🎉 ${designsList.length} diseños encontrados');
+        
+        if (designsList.isEmpty) {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('Diseños Guardados en MySQL'),
-              content: SizedBox(
-                width: 400,
-                height: 400,
-                child: ListView.builder(
-                  itemCount: designsList.length,
-                  itemBuilder: (context, index) {
-                    final design = designsList[index] as Map<String, dynamic>;
-                    return ListTile(
-                      leading: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: _parseColor(design['cord_color']?.toString() ?? '#000000'),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      title: Text(design['name']?.toString() ?? 'Sin nombre'),
-                      subtitle: Text(
-                        'Celda: ${design['cell_size'] ?? '?'}px • ${_formatDate(design['created_at']?.toString() ?? '')}'
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('ID: ${design['id']}'),
-                          IconButton(
-                            icon: const Icon(Icons.download, color: Colors.blue),
-                            onPressed: () => _loadSpecificDesign(design['id']),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
+              title: const Text('Cargar Diseño'),
+              content: const Text('No hay diseños guardados en la base de datos.'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cerrar'),
+                  child: const Text('OK'),
                 ),
               ],
             ),
           );
-        } else {
-          throw Exception('Formato de respuesta inválido: ${response.body}');
+          return;
         }
+        
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Diseños Guardados en MySQL'),
+            content: SizedBox(
+              width: 400,
+              height: 400,
+              child: ListView.builder(
+                itemCount: designsList.length,
+                itemBuilder: (context, index) {
+                  final design = designsList[index] as Map<String, dynamic>;
+                  final id = design['id']?.toString() ?? '${index + 1}';
+                  final name = design['name']?.toString() ?? 'Sin nombre';
+                  final cellSize = design['cell_size']?.toString() ?? design['cellSize']?.toString() ?? '?';
+                  final createdAt = design['created_at']?.toString() ?? design['createdAt']?.toString() ?? '';
+                  
+                  return ListTile(
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _parseColor(design['cord_color']?.toString() ?? design['cordColor']?.toString() ?? '#8B4513'),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    title: Text(name),
+                    subtitle: Text(
+                      'Celda: ${cellSize}px • ${_formatDate(createdAt)}'
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('ID: $id'),
+                        IconButton(
+                          icon: const Icon(Icons.download, color: Colors.blue),
+                          onPressed: () => _loadSpecificDesign(int.tryParse(id) ?? index + 1),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          ),
+        );
       } else {
         throw Exception('Error HTTP ${response.statusCode}: ${response.body}');
       }
@@ -588,6 +602,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
             Text('ID: $projectId'),
+            Text('URL: $_apiBaseUrl/api/designs/$projectId'),
           ],
         ),
       ),
@@ -595,6 +610,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
 
     try {
       print('🎯 Cargando diseño específico ID: $projectId');
+      print('🌐 URL: $_apiBaseUrl/api/designs/$projectId');
       
       final response = await http.get(Uri.parse('$_apiBaseUrl/api/designs/$projectId'));
       
@@ -603,98 +619,97 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         
-        if (responseData['success'] == true) {
-          final Map<String, dynamic> design = responseData['data'];
-          
-          final List<dynamic> knotsData = 
-              design['knots'] ?? design['gridData'] ?? [];
-          
-          print('✅ Diseño cargado desde MySQL:');
-          print('  Nombre: ${design['name']}');
-          print('  ID: ${design['id']}');
-          print('  Celda: ${design['cell_size'] ?? design['cellSize']}px');
-          print('  Color: ${design['cord_color'] ?? design['cordColor']}');
-          print('  Grosor: ${design['cord_thickness'] ?? design['cordThickness']}');
-          print('  Nudos encontrados: ${knotsData.length}');
-          
-          setState(() {
-            _cellSize = ((design['cell_size'] ?? design['cellSize']) as num?)?.toDouble() ?? 60.0;
-            _cordThickness = ((design['cord_thickness'] ?? design['cordThickness']) as num?)?.toDouble() ?? 3.0;
-            _cordColor = _parseColor((design['cord_color'] ?? design['cordColor'])?.toString() ?? '#000000');
-            
-            _projectName = design['name']?.toString() ?? 'Diseño cargado';
-            _hasUnsavedChanges = false;
-            
-            if (knotsData.isNotEmpty) {
-              _saveForUndo();
-              _placedKnots.clear();
-              
-              for (var knotData in knotsData) {
-                try {
-                  final knotTypeId = knotData['typeId']?.toString() ?? '';
-                  
-                  KnotType knotType = _knotTypes.firstWhere(
-                    (type) => type.id == knotTypeId,
-                    orElse: () => _knotTypes.first,
-                  );
-                  
-                  final cell = GridCell(
-                    (knotData['row'] as num?)?.toInt() ?? 0,
-                    (knotData['col'] as num?)?.toInt() ?? 0,
-                    isOffsetRow: knotData['isOffsetRow'] ?? false,
-                  );
-                  
-                  final placedKnot = PlacedKnot(
-                    id: knotData['id']?.toString() ?? 
-                        '${DateTime.now().millisecondsSinceEpoch}_${knotType.id}',
-                    type: knotType,
-                    cell: cell,
-                    placedAt: knotData['placedAt'] != null 
-                        ? DateTime.tryParse(knotData['placedAt']) ?? DateTime.now()
-                        : DateTime.now(),
-                  );
-                  
-                  _placedKnots.add(placedKnot);
-                  
-                  print('    → Nudo: ${knotType.name} en (${cell.row}, ${cell.col}), offset: ${cell.isOffsetRow}');
-                } catch (e) {
-                  print('    ⚠️ Error procesando nudo: $e');
-                  print('    ⚠️ Datos del nudo: $knotData');
-                }
-              }
-              
-              print('✅ ${_placedKnots.length} nudos restaurados exitosamente');
-            } else {
-              print('ℹ️ No hay datos de nudos para restaurar');
-            }
-          });
-          
-          if (mounted) {
-            Navigator.pop(context);
-            Navigator.pop(context);
-          }
-          
-          if (mounted) {
-            final message = knotsData.isNotEmpty 
-                ? '✅ Diseño "${design['name']}" cargado\n📏 Celda: ${_cellSize.toInt()}px | 🎨 Color: ${design['cord_color']} | 🪢 Nudos: ${knotsData.length}'
-                : '✅ Diseño "${design['name']}" cargado\n📏 Celda: ${_cellSize.toInt()}px | 🎨 Color: ${design['cord_color']}';
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(message),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 4),
-                action: SnackBarAction(
-                  label: 'OK',
-                  onPressed: () {},
-                ),
-              ),
-            );
-          }
-          
+        final Map<String, dynamic> design;
+        
+        if (responseData['data'] is Map) {
+          design = responseData['data'];
+        } else if (responseData is Map) {
+          design = responseData;
         } else {
-          throw Exception('Error en respuesta del servidor');
+          throw Exception('Formato de respuesta no reconocido');
         }
+        
+        final List<dynamic> knotsData = design['knots'] ?? design['gridData'] ?? [];
+        
+        print('✅ Diseño cargado desde MySQL:');
+        print('  Nombre: ${design['name']}');
+        print('  ID: ${design['id']}');
+        print('  Nudos encontrados: ${knotsData.length}');
+        
+        setState(() {
+          _cellSize = ((design['cell_size'] ?? design['cellSize']) as num?)?.toDouble() ?? AppConstants.defaultCellSize;
+          _cordThickness = ((design['cord_thickness'] ?? design['cordThickness']) as num?)?.toDouble() ?? AppConstants.defaultCordThickness;
+          _cordColor = _parseColor((design['cord_color'] ?? design['cordColor'])?.toString() ?? '#8B4513');
+          
+          _projectName = design['name']?.toString() ?? 'Diseño cargado';
+          _hasUnsavedChanges = false;
+          
+          if (knotsData.isNotEmpty) {
+            _saveForUndo();
+            _placedKnots.clear();
+            
+            for (var knotData in knotsData) {
+              try {
+                final knotTypeId = knotData['typeId']?.toString() ?? '';
+                
+                KnotType knotType = _knotTypes.firstWhere(
+                  (type) => type.id == knotTypeId,
+                  orElse: () => _knotTypes.first,
+                );
+                
+                final cell = GridCell(
+                  (knotData['row'] as num?)?.toInt() ?? 0,
+                  (knotData['col'] as num?)?.toInt() ?? 0,
+                  isOffsetRow: knotData['isOffsetRow'] ?? false,
+                );
+                
+                final placedKnot = PlacedKnot(
+                  id: knotData['id']?.toString() ?? 
+                      '${DateTime.now().millisecondsSinceEpoch}_${knotType.id}',
+                  type: knotType,
+                  cell: cell,
+                  placedAt: knotData['placedAt'] != null 
+                      ? DateTime.tryParse(knotData['placedAt']) ?? DateTime.now()
+                      : DateTime.now(),
+                );
+                
+                _placedKnots.add(placedKnot);
+                
+                print('    → Nudo: ${knotType.name} en (${cell.row}, ${cell.col}), offset: ${cell.isOffsetRow}');
+              } catch (e) {
+                print('    ⚠️ Error procesando nudo: $e');
+                print('    ⚠️ Datos del nudo: $knotData');
+              }
+            }
+            
+            print('✅ ${_placedKnots.length} nudos restaurados exitosamente');
+          } else {
+            print('ℹ️ No hay datos de nudos para restaurar');
+          }
+        });
+        
+        if (mounted) {
+          Navigator.pop(context); // Cerrar diálogo de carga
+        }
+        
+        if (mounted) {
+          final message = knotsData.isNotEmpty 
+              ? '✅ Diseño "${design['name']}" cargado\n📏 Celda: ${_cellSize.toInt()}px | 🎨 Color: ${design['cord_color']} | 🪢 Nudos: ${knotsData.length}'
+              : '✅ Diseño "${design['name']}" cargado\n📏 Celda: ${_cellSize.toInt()}px | 🎨 Color: ${design['cord_color']}';
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: 'OK',
+                onPressed: () {},
+              ),
+            ),
+          );
+        }
+        
       } else if (response.statusCode == 404) {
         throw Exception('Diseño no encontrado (ID: $projectId)');
       } else {
@@ -704,8 +719,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
       print('❌ Error cargando diseño específico: $e');
       
       if (mounted) {
-        Navigator.pop(context);
-        Navigator.pop(context);
+        Navigator.pop(context); // Cerrar diálogo de carga
       }
       
       if (mounted) {
@@ -784,6 +798,18 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
                     style: TextStyle(fontSize: 10, color: Colors.white),
                   ),
                 ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _apiBaseUrl.contains('localhost') ? 'Local' : 'Remoto',
+                  style: const TextStyle(fontSize: 10, color: Colors.white),
+                ),
+              ),
             ],
           ),
         ),
@@ -1024,6 +1050,8 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
   Future<void> _testApiConnection() async {
     try {
       print('🔌 Probando conexión a API...');
+      print('🌐 URL: $_apiBaseUrl/api/health');
+      
       final response = await http.get(Uri.parse('$_apiBaseUrl/api/health'));
       
       print('📥 Respuesta: ${response.statusCode}');
@@ -1362,6 +1390,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
     final newPattern = PatternDesign(
       id: 'user_${DateTime.now().millisecondsSinceEpoch}',
       name: name,
+      author: 'usuario', // Necesitarás definir esta variable
       description: 'Diseño personalizado creado en Macrame Designer',
       imageUrl: '', // Podrías generar un screenshot
       youtubeTutorialUrl: '',
@@ -1544,6 +1573,8 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
                 }
                 return const SizedBox.shrink();
               }).toList(),
+              const SizedBox(height: 16),
+              Text('🌐 API Base URL: $_apiBaseUrl'),
             ],
           ),
         ),
@@ -1767,6 +1798,7 @@ class _DesignerScreenState extends State<DesignerScreen> with WidgetsBindingObse
                   _buildInfoRow('📏 Tamaño celda:', '${_cellSize.toInt()}px'),
                   _buildInfoRow('📐 Longitud estimada:', '${length.toStringAsFixed(1)} m'),
                   _buildInfoRow('💰 Costo aproximado:', '\$${cost.toStringAsFixed(2)}'),
+                  _buildInfoRow('🌐 API Base:', _apiBaseUrl),
                 ],
               ),
             ),

@@ -12,10 +12,10 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   
   // Colors
-  static const Color primaryColor = Color(0xFF8B4513);
-  static const Color secondaryColor = Color(0xFFA0522D);
+  static const Color primaryColor = Color(0xFF6A4C93);
+  static const Color secondaryColor = Color(0xFFF9C846);
   static const Color accentColor = Color(0xFFD2691E);
-  static const Color backgroundColor = Color(0xFFF5F5F5);
+  static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color textColor = Color(0xFF333333);
   static const Color borderColor = Color(0xFFDDDDDD);
   

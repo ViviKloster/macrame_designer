@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 class PatternDesign {
   final String id;
   final String name;
+  final String author;
   final String description;
   final String imageUrl;
   final String youtubeTutorialUrl;
@@ -19,6 +20,7 @@ class PatternDesign {
   PatternDesign({
     required this.id,
     required this.name,
+    required this.author,
     required this.description,
     required this.imageUrl,
     required this.youtubeTutorialUrl,
@@ -40,6 +42,7 @@ class PatternDesign {
     return {
       'id': id,
       'name': name,
+      'author': author,
       'description': description,
       'imageUrl': imageUrl,
       'youtubeTutorialUrl': youtubeTutorialUrl,
@@ -58,6 +61,7 @@ class PatternDesign {
     return PatternDesign(
       id: json['id'],
       name: json['name'],
+      author: json['author'],
       description: json['description'],
       imageUrl: json['imageUrl'],
       youtubeTutorialUrl: json['youtubeTutorialUrl'],
@@ -315,6 +319,7 @@ class PatternDataService {
       PatternDesign(
         id: '1',
         name: 'Tapiz triangular básico',
+        author: '',
         description: 'Perfecto para principiantes. Diseño minimalista con nudos cuadrados y medios nudos.',
         imageUrl: 'https://example.com/images/triangular_basic.jpg',
         youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo1',
@@ -354,6 +359,7 @@ class PatternDataService {
       PatternDesign(
         id: '2',
         name: 'Portamacetas colgante',
+        author: '',
         description: 'Portamacetas con diseño de nudos espirales y bayas. Ideal para interiores.',
         imageUrl: 'https://example.com/images/hanging_plant_hanger.jpg',
         youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo2',
@@ -399,6 +405,7 @@ class PatternDataService {
       PatternDesign(
         id: '3',
         name: 'Cortina de macramé',
+        author: '',
         description: 'Cortina decorativa con patrones complejos de nudos cuadrados y espirales.',
         imageUrl: 'https://example.com/images/macrame_curtain.jpg',
         youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo3',
@@ -438,6 +445,7 @@ class PatternDataService {
       PatternDesign(
         id: '4',
         name: 'Espejo con marco de macramé',
+        author: '',
         description: 'Marco decorativo para espejos con diseño circular y nudos de baya.',
         imageUrl: 'https://example.com/images/mirror_frame.jpg',
         youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo4',
@@ -483,6 +491,7 @@ class PatternDataService {
       PatternDesign(
         id: '5',
         name: 'Pulsera básica de macramé',
+        author: '',
         description: 'Pulsera simple con nudos cuadrados. Perfecta para principiantes y regalos.',
         imageUrl: 'https://example.com/images/basic_bracelet.jpg',
         youtubeTutorialUrl: 'https://www.youtube.com/watch?v=ejemplo5',
